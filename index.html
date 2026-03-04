@@ -11,7 +11,8 @@
     display: flex;
     justify-content: center;
     align-items: center;
-    height: 100vh;
+    min-height: 100vh;
+    padding: 20px 0;
     font-family: 'Courier New', monospace;
     color: #0f0;
   }
@@ -40,6 +41,11 @@
     font-size: 1rem;
     min-height: 1.4em;
   }
+  #plays {
+    margin-top: 6px;
+    font-size: 0.85rem;
+    color: #0a0;
+  }
 </style>
 </head>
 <body>
@@ -48,8 +54,43 @@
   <div id="score">SCORE: 0</div>
   <canvas id="game" width="400" height="400"></canvas>
   <div id="message">Press any arrow key to start</div>
+  <div id="plays">TOTAL PLAYS: ...</div>
 </div>
 <script>
+const SUPABASE_URL = 'https://lixwpvodyhdxezbrgvja.supabase.co';
+const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImxpeHdwdm9keWhkeGV6YnJndmphIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzI1OTc4NDEsImV4cCI6MjA4ODE3Mzg0MX0.1cMp8WovIhNJ-wrVV9gixkLqix-o5gjxTpFLnh_z_n0';
+const playsEl = document.getElementById('plays');
+
+async function supabaseRpc(fnName) {
+  const res = await fetch(`${SUPABASE_URL}/rest/v1/rpc/${fnName}`, {
+    method: 'POST',
+    headers: {
+      'apikey': SUPABASE_KEY,
+      'Authorization': `Bearer ${SUPABASE_KEY}`,
+      'Content-Type': 'application/json'
+    }
+  });
+  return res.json();
+}
+
+async function fetchPlayCount() {
+  const res = await fetch(`${SUPABASE_URL}/rest/v1/play_count?select=total_plays&id=eq.1`, {
+    headers: {
+      'apikey': SUPABASE_KEY,
+      'Authorization': `Bearer ${SUPABASE_KEY}`
+    }
+  });
+  const data = await res.json();
+  if (data[0]) playsEl.textContent = 'TOTAL PLAYS: ' + data[0].total_plays;
+}
+
+async function recordPlay() {
+  const count = await supabaseRpc('increment_play_count');
+  playsEl.textContent = 'TOTAL PLAYS: ' + count;
+}
+
+fetchPlayCount();
+
 const canvas = document.getElementById('game');
 const ctx = canvas.getContext('2d');
 const scoreEl = document.getElementById('score');
@@ -198,6 +239,7 @@ document.addEventListener('keydown', e => {
   if (!running && !gameOver) {
     running = true;
     msgEl.textContent = '';
+    recordPlay();
     tick();
   }
 });
