@@ -46,6 +46,42 @@
     font-size: 0.85rem;
     color: #0a0;
   }
+  #name-form {
+    margin-top: 12px;
+  }
+  #name-form label {
+    font-size: 1rem;
+  }
+  #name-input {
+    background: #222;
+    border: 2px solid #0f0;
+    color: #0f0;
+    font-family: 'Courier New', monospace;
+    font-size: 1rem;
+    padding: 4px 8px;
+    margin-left: 8px;
+    outline: none;
+    width: 140px;
+    text-transform: uppercase;
+  }
+  #name-input:focus {
+    box-shadow: 0 0 8px rgba(0, 255, 0, 0.4);
+  }
+  #name-form button {
+    background: #0f0;
+    color: #111;
+    border: none;
+    font-family: 'Courier New', monospace;
+    font-size: 1rem;
+    font-weight: bold;
+    padding: 5px 14px;
+    margin-left: 8px;
+    cursor: pointer;
+  }
+  #name-form button:hover {
+    background: #0a0;
+    color: #fff;
+  }
 </style>
 </head>
 <body>
@@ -53,14 +89,24 @@
   <h1>SNAKE</h1>
   <div id="score">SCORE: 0</div>
   <canvas id="game" width="400" height="400"></canvas>
-  <div id="message">Press any arrow key to start</div>
+  <div id="message"></div>
+  <div id="name-form">
+    <label>ENTER NAME:</label>
+    <input type="text" id="name-input" maxlength="12" placeholder="PLAYER" autofocus>
+    <button id="name-btn">PLAY</button>
+  </div>
   <div id="stats">TOTAL PLAYS: ... | HIGH SCORE: ...</div>
 </div>
 <script>
 const SUPABASE_URL = 'https://lixwpvodyhdxezbrgvja.supabase.co';
 const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImxpeHdwdm9keWhkeGV6YnJndmphIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzI1OTc4NDEsImV4cCI6MjA4ODE3Mzg0MX0.1cMp8WovIhNJ-wrVV9gixkLqix-o5gjxTpFLnh_z_n0';
 const statsEl = document.getElementById('stats');
+const nameForm = document.getElementById('name-form');
+const nameInput = document.getElementById('name-input');
+const nameBtn = document.getElementById('name-btn');
 let globalHighScore = 0;
+let globalHighName = '';
+let playerName = '';
 
 async function supabaseRpc(fnName, body) {
   const res = await fetch(`${SUPABASE_URL}/rest/v1/rpc/${fnName}`, {
@@ -75,12 +121,13 @@ async function supabaseRpc(fnName, body) {
   return res.json();
 }
 
-function updateStats(plays, high) {
-  statsEl.textContent = 'TOTAL PLAYS: ' + plays + ' | HIGH SCORE: ' + high;
+function updateStats(plays, high, name) {
+  const nameStr = name ? ' by ' + name : '';
+  statsEl.textContent = 'TOTAL PLAYS: ' + plays + ' | HIGH SCORE: ' + high + nameStr;
 }
 
 async function fetchStats() {
-  const res = await fetch(`${SUPABASE_URL}/rest/v1/play_count?select=total_plays,high_score&id=eq.1`, {
+  const res = await fetch(`${SUPABASE_URL}/rest/v1/play_count?select=total_plays,high_score,high_score_name&id=eq.1`, {
     headers: {
       'apikey': SUPABASE_KEY,
       'Authorization': `Bearer ${SUPABASE_KEY}`
@@ -89,19 +136,23 @@ async function fetchStats() {
   const data = await res.json();
   if (data[0]) {
     globalHighScore = data[0].high_score;
-    updateStats(data[0].total_plays, data[0].high_score);
+    globalHighName = data[0].high_score_name;
+    updateStats(data[0].total_plays, data[0].high_score, data[0].high_score_name);
   }
 }
 
 async function recordPlay() {
   const count = await supabaseRpc('increment_play_count');
-  updateStats(count, globalHighScore);
+  updateStats(count, globalHighScore, globalHighName);
 }
 
 async function submitScore(finalScore) {
-  const high = await supabaseRpc('submit_score', { new_score: finalScore });
-  globalHighScore = high;
-  statsEl.textContent = statsEl.textContent.replace(/HIGH SCORE: \d+/, 'HIGH SCORE: ' + high);
+  const result = await supabaseRpc('submit_score', { new_score: finalScore, player_name: playerName });
+  if (result && result.length > 0) {
+    globalHighScore = result[0].high_score;
+    globalHighName = result[0].high_score_name;
+  }
+  await fetchStats();
 }
 
 fetchStats();
@@ -116,9 +167,35 @@ const COLS = canvas.width / GRID;
 const ROWS = canvas.height / GRID;
 const TICK_MS = 120;
 
-let snake, dir, nextDir, food, score, running, gameOver;
+let snake, dir, nextDir, food, score, running, gameOver, waitingForName;
 
-function init() {
+function showNameForm() {
+  waitingForName = true;
+  nameForm.style.display = '';
+  nameInput.value = playerName;
+  nameInput.focus();
+}
+
+function hideNameForm() {
+  waitingForName = false;
+  nameForm.style.display = 'none';
+}
+
+function startGame() {
+  const name = nameInput.value.trim().toUpperCase();
+  if (!name) { nameInput.focus(); return; }
+  playerName = name;
+  hideNameForm();
+  resetBoard();
+  msgEl.textContent = 'Press any arrow key to start';
+}
+
+nameBtn.addEventListener('click', startGame);
+nameInput.addEventListener('keydown', e => {
+  if (e.key === 'Enter') startGame();
+});
+
+function resetBoard() {
   const mid = Math.floor(COLS / 2);
   snake = [
     { x: mid, y: Math.floor(ROWS / 2) },
@@ -133,7 +210,11 @@ function init() {
   placeFood();
   updateScore();
   draw();
-  msgEl.textContent = 'Press any arrow key to start';
+}
+
+function init() {
+  resetBoard();
+  showNameForm();
 }
 
 function placeFood() {
@@ -232,8 +313,10 @@ function endGame() {
 document.addEventListener('keydown', e => {
   const key = e.key;
 
+  if (waitingForName) return;
+
   if (gameOver && key === 'Enter') {
-    init();
+    showNameForm();
     return;
   }
 
