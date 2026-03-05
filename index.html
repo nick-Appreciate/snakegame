@@ -151,9 +151,12 @@ const RAINBOW = ['#f44', '#f80', '#ff0', '#0f0', '#0ff'];
 let rainbowOffset = 0;
 let rainbowFrames = 0;
 let rainbowAnimId = null;
+let rainbowTick = 0;
+const RAINBOW_SPEED = 4; // only advance every 4th frame (25% speed)
 
 function triggerRainbow() {
   rainbowOffset = 0;
+  rainbowTick = 0;
   rainbowFrames = RAINBOW.length * 3; // wave travels 3 full cycles
   if (!rainbowAnimId) runRainbow();
 }
@@ -163,8 +166,12 @@ function runRainbow() {
     rainbowAnimId = null;
     return;
   }
-  rainbowOffset++;
-  rainbowFrames--;
+  rainbowTick++;
+  if (rainbowTick >= RAINBOW_SPEED) {
+    rainbowTick = 0;
+    rainbowOffset++;
+    rainbowFrames--;
+  }
   draw();
   rainbowAnimId = requestAnimationFrame(runRainbow);
 }
@@ -183,6 +190,7 @@ function stopRainbow() {
   }
   rainbowFrames = 0;
   rainbowOffset = 0;
+  rainbowTick = 0;
 }
 
 // --- Supabase ---
