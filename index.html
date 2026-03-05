@@ -178,7 +178,7 @@ function runRainbow() {
 
 function getSegmentColor(segIndex) {
   if (rainbowFrames > 0) {
-    return RAINBOW[(segIndex + rainbowOffset) % RAINBOW.length];
+    return RAINBOW[((segIndex - rainbowOffset) % RAINBOW.length + RAINBOW.length) % RAINBOW.length];
   }
   return null;
 }
