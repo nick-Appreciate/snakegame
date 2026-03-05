@@ -147,28 +147,18 @@ let globalHighName = '';
 let playerName = '';
 
 // --- Rainbow Wave ---
-// Each tick after eating, the head segment gets the next rainbow color.
-// Those colored segments naturally slide down the body as the snake moves.
-const RAINBOW = ['#f44', '#f80', '#ff0', '#0f0', '#0ff'];
-let rainbowRemaining = 0;  // how many more ticks to color the head
-let rainbowIndex = 0;      // which color to assign next
+// On eat, queue N colors (one per snake segment). Each tick, the head
+// gets the next color. After N ticks every segment is colored. Then
+// new uncolored heads push the colors toward the tail until they fall off.
+const RAINBOW = ['#f44', '#f80', '#ff0', '#f0f', '#0ff'];
+let colorQueue = [];
 
 function triggerRainbow() {
-  rainbowRemaining = RAINBOW.length;
-  rainbowIndex = 0;
-}
-
-function assignRainbowToHead() {
-  if (rainbowRemaining > 0) {
-    snake[0].color = RAINBOW[rainbowIndex];
-    rainbowIndex++;
-    rainbowRemaining--;
+  const len = snake.length;
+  colorQueue = [];
+  for (let i = 0; i < len; i++) {
+    colorQueue.push(RAINBOW[i % RAINBOW.length]);
   }
-}
-
-function stopRainbow() {
-  rainbowRemaining = 0;
-  rainbowIndex = 0;
 }
 
 // --- Supabase ---
@@ -248,7 +238,7 @@ const COLS = canvas.width / GRID;
 const ROWS = canvas.height / GRID;
 const TICK_MS = 120;
 
-let snake, dir, nextDir, food, score, running, gameOver, waitingForName;
+let snake, dir, nextDir, food, score, running, gameOver, waitingForName, growthPending;
 
 function showNameForm() {
   waitingForName = true;
@@ -288,7 +278,8 @@ function resetBoard() {
   score = 0;
   running = false;
   gameOver = false;
-  stopRainbow();
+  growthPending = 0;
+  colorQueue = [];
   placeFood();
   updateScore();
   draw();
@@ -374,16 +365,23 @@ function tick() {
   snake.unshift(head);
 
   if (head.x === food.x && head.y === food.y) {
-    score += 10;
+    // Bonus: if head is rainbow-colored, count as 3 foods
+    const mult = snake[0].color ? 3 : 1;
+    score += 10 * mult;
+    growthPending += mult - 1; // 1 growth is free (no pop), queue the rest
     updateScore();
     triggerRainbow();
     placeFood();
+  } else if (growthPending > 0) {
+    growthPending--;
   } else {
     snake.pop();
   }
 
-  // Color the head segment if rainbow wave is active
-  assignRainbowToHead();
+  // Assign next queued color to head
+  if (colorQueue.length > 0) {
+    snake[0].color = colorQueue.shift();
+  }
 
   draw();
   setTimeout(tick, TICK_MS);
