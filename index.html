@@ -146,51 +146,29 @@ let globalHighScore = 0;
 let globalHighName = '';
 let playerName = '';
 
-// --- Rainbow Wave Animation ---
+// --- Rainbow Wave ---
+// Each tick after eating, the head segment gets the next rainbow color.
+// Those colored segments naturally slide down the body as the snake moves.
 const RAINBOW = ['#f44', '#f80', '#ff0', '#0f0', '#0ff'];
-let rainbowOffset = 0;
-let rainbowFrames = 0;
-let rainbowAnimId = null;
-let rainbowTick = 0;
-const RAINBOW_SPEED = 4; // only advance every 4th frame (25% speed)
+let rainbowRemaining = 0;  // how many more ticks to color the head
+let rainbowIndex = 0;      // which color to assign next
 
 function triggerRainbow() {
-  rainbowOffset = 0;
-  rainbowTick = 0;
-  rainbowFrames = RAINBOW.length * 3; // wave travels 3 full cycles
-  if (!rainbowAnimId) runRainbow();
+  rainbowRemaining = RAINBOW.length;
+  rainbowIndex = 0;
 }
 
-function runRainbow() {
-  if (rainbowFrames <= 0) {
-    rainbowAnimId = null;
-    return;
+function assignRainbowToHead() {
+  if (rainbowRemaining > 0) {
+    snake[0].color = RAINBOW[rainbowIndex];
+    rainbowIndex++;
+    rainbowRemaining--;
   }
-  rainbowTick++;
-  if (rainbowTick >= RAINBOW_SPEED) {
-    rainbowTick = 0;
-    rainbowOffset++;
-    rainbowFrames--;
-  }
-  draw();
-  rainbowAnimId = requestAnimationFrame(runRainbow);
-}
-
-function getSegmentColor(segIndex) {
-  if (rainbowFrames > 0) {
-    return RAINBOW[((segIndex - rainbowOffset) % RAINBOW.length + RAINBOW.length) % RAINBOW.length];
-  }
-  return null;
 }
 
 function stopRainbow() {
-  if (rainbowAnimId) {
-    cancelAnimationFrame(rainbowAnimId);
-    rainbowAnimId = null;
-  }
-  rainbowFrames = 0;
-  rainbowOffset = 0;
-  rainbowTick = 0;
+  rainbowRemaining = 0;
+  rainbowIndex = 0;
 }
 
 // --- Supabase ---
@@ -365,10 +343,9 @@ function draw() {
 
   // Snake
   snake.forEach((seg, i) => {
-    const rc = getSegmentColor(i);
-    if (rc) {
-      ctx.fillStyle = rc;
-      ctx.shadowColor = rc;
+    if (seg.color) {
+      ctx.fillStyle = seg.color;
+      ctx.shadowColor = seg.color;
     } else {
       ctx.fillStyle = i === 0 ? '#0f0' : '#0a0';
       ctx.shadowColor = '#0f0';
@@ -404,6 +381,9 @@ function tick() {
   } else {
     snake.pop();
   }
+
+  // Color the head segment if rainbow wave is active
+  assignRainbowToHead();
 
   draw();
   setTimeout(tick, TICK_MS);
