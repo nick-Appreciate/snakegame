@@ -82,6 +82,36 @@
     background: #0a0;
     color: #fff;
   }
+  #leaderboard {
+    margin-top: 16px;
+    display: inline-block;
+    text-align: left;
+    min-width: 280px;
+  }
+  #leaderboard h2 {
+    font-size: 1rem;
+    text-align: center;
+    margin-bottom: 6px;
+    letter-spacing: 3px;
+  }
+  #leaderboard table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.8rem;
+  }
+  #leaderboard th {
+    color: #0f0;
+    border-bottom: 1px solid #0f0;
+    padding: 3px 8px;
+    text-align: left;
+  }
+  #leaderboard td {
+    color: #0a0;
+    padding: 2px 8px;
+  }
+  #leaderboard tr.gold td { color: #ff0; }
+  #leaderboard tr.silver td { color: #ccc; }
+  #leaderboard tr.bronze td { color: #c84; }
 </style>
 </head>
 <body>
@@ -96,6 +126,13 @@
     <button id="name-btn">PLAY</button>
   </div>
   <div id="stats">TOTAL PLAYS: ... | HIGH SCORE: ...</div>
+  <div id="leaderboard">
+    <h2>LEADERBOARD</h2>
+    <table>
+      <thead><tr><th>#</th><th>NAME</th><th>SCORE</th></tr></thead>
+      <tbody id="lb-body"></tbody>
+    </table>
+  </div>
 </div>
 <script>
 const SUPABASE_URL = 'https://lixwpvodyhdxezbrgvja.supabase.co';
@@ -104,10 +141,43 @@ const statsEl = document.getElementById('stats');
 const nameForm = document.getElementById('name-form');
 const nameInput = document.getElementById('name-input');
 const nameBtn = document.getElementById('name-btn');
+const lbBody = document.getElementById('lb-body');
 let globalHighScore = 0;
 let globalHighName = '';
 let playerName = '';
 
+// --- Color Schemes ---
+const COLOR_SCHEMES = [
+  { snake: '#0f0', snakeBody: '#0a0', food: '#f00', border: '#0f0', glow: 'rgba(0,255,0,0.3)' },
+  { snake: '#0ff', snakeBody: '#088', food: '#f0f', border: '#0ff', glow: 'rgba(0,255,255,0.3)' },
+  { snake: '#ff0', snakeBody: '#aa0', food: '#f60', border: '#ff0', glow: 'rgba(255,255,0,0.3)' },
+  { snake: '#f0f', snakeBody: '#a0a', food: '#0ff', border: '#f0f', glow: 'rgba(255,0,255,0.3)' },
+  { snake: '#f80', snakeBody: '#a50', food: '#8f0', border: '#f80', glow: 'rgba(255,136,0,0.3)' },
+  { snake: '#f44', snakeBody: '#a22', food: '#4ff', border: '#f44', glow: 'rgba(255,68,68,0.3)' },
+  { snake: '#4f4', snakeBody: '#2a2', food: '#ff4', border: '#4f4', glow: 'rgba(68,255,68,0.3)' },
+  { snake: '#88f', snakeBody: '#55a', food: '#ff8', border: '#88f', glow: 'rgba(136,136,255,0.3)' },
+];
+let colorIndex = 0;
+let currentColors = COLOR_SCHEMES[0];
+
+function cycleColor() {
+  colorIndex = (colorIndex + 1) % COLOR_SCHEMES.length;
+  currentColors = COLOR_SCHEMES[colorIndex];
+  // Update canvas border and glow
+  const canvasEl = document.getElementById('game');
+  canvasEl.style.borderColor = currentColors.border;
+  canvasEl.style.boxShadow = '0 0 20px ' + currentColors.glow;
+}
+
+function resetColors() {
+  colorIndex = 0;
+  currentColors = COLOR_SCHEMES[0];
+  const canvasEl = document.getElementById('game');
+  canvasEl.style.borderColor = '#0f0';
+  canvasEl.style.boxShadow = '0 0 20px rgba(0,255,0,0.3)';
+}
+
+// --- Supabase ---
 async function supabaseRpc(fnName, body) {
   const res = await fetch(`${SUPABASE_URL}/rest/v1/rpc/${fnName}`, {
     method: 'POST',
@@ -141,22 +211,39 @@ async function fetchStats() {
   }
 }
 
+async function fetchLeaderboard() {
+  const res = await fetch(`${SUPABASE_URL}/rest/v1/leaderboard?select=player_name,score&order=score.desc&limit=10`, {
+    headers: {
+      'apikey': SUPABASE_KEY,
+      'Authorization': `Bearer ${SUPABASE_KEY}`
+    }
+  });
+  const data = await res.json();
+  const medals = ['gold', 'silver', 'bronze'];
+  lbBody.innerHTML = data.map((row, i) => {
+    const cls = i < 3 ? ` class="${medals[i]}"` : '';
+    return `<tr${cls}><td>${i + 1}</td><td>${row.player_name}</td><td>${row.score}</td></tr>`;
+  }).join('');
+  if (data.length === 0) {
+    lbBody.innerHTML = '<tr><td colspan="3" style="text-align:center;color:#555">No games yet</td></tr>';
+  }
+}
+
 async function recordPlay() {
   const count = await supabaseRpc('increment_play_count');
   updateStats(count, globalHighScore, globalHighName);
 }
 
 async function submitScore(finalScore) {
-  const result = await supabaseRpc('submit_score', { new_score: finalScore, player_name: playerName });
-  if (result && result.length > 0) {
-    globalHighScore = result[0].high_score;
-    globalHighName = result[0].high_score_name;
-  }
+  await supabaseRpc('submit_game', { player_name: playerName, final_score: finalScore });
   await fetchStats();
+  await fetchLeaderboard();
 }
 
 fetchStats();
+fetchLeaderboard();
 
+// --- Game ---
 const canvas = document.getElementById('game');
 const ctx = canvas.getContext('2d');
 const scoreEl = document.getElementById('score');
@@ -207,6 +294,7 @@ function resetBoard() {
   score = 0;
   running = false;
   gameOver = false;
+  resetColors();
   placeFood();
   updateScore();
   draw();
@@ -253,16 +341,16 @@ function draw() {
   }
 
   // Food
-  ctx.fillStyle = '#f00';
-  ctx.shadowColor = '#f00';
+  ctx.fillStyle = currentColors.food;
+  ctx.shadowColor = currentColors.food;
   ctx.shadowBlur = 8;
   ctx.fillRect(food.x * GRID + 2, food.y * GRID + 2, GRID - 4, GRID - 4);
   ctx.shadowBlur = 0;
 
   // Snake
   snake.forEach((seg, i) => {
-    ctx.fillStyle = i === 0 ? '#0f0' : '#0a0';
-    ctx.shadowColor = '#0f0';
+    ctx.fillStyle = i === 0 ? currentColors.snake : currentColors.snakeBody;
+    ctx.shadowColor = currentColors.snake;
     ctx.shadowBlur = i === 0 ? 6 : 0;
     ctx.fillRect(seg.x * GRID + 1, seg.y * GRID + 1, GRID - 2, GRID - 2);
   });
@@ -289,6 +377,7 @@ function tick() {
   if (head.x === food.x && head.y === food.y) {
     score += 10;
     updateScore();
+    cycleColor();
     placeFood();
   } else {
     snake.pop();
