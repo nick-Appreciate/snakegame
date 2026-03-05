@@ -365,8 +365,8 @@ function tick() {
   snake.unshift(head);
 
   if (head.x === food.x && head.y === food.y) {
-    // Bonus: if head is rainbow-colored, count as 3 foods
-    const mult = snake[0].color ? 3 : 1;
+    // Bonus: if previous head is rainbow-colored, count as 3 foods
+    const mult = (snake[1] && snake[1].color) ? 3 : 1;
     score += 10 * mult;
     growthPending += mult - 1; // 1 growth is free (no pop), queue the rest
     updateScore();
