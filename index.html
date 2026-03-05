@@ -80,7 +80,7 @@
   }
   #name-form button:hover {
     background: #0a0;
-    color: #fff;
+    color: #111;
   }
   #leaderboard {
     margin-top: 16px;
@@ -306,7 +306,7 @@ function updateScore() {
 
 function draw() {
   // Background
-  ctx.fillStyle = '#111';
+  ctx.fillStyle = '#0a0';
   ctx.fillRect(0, 0, canvas.width, canvas.height);
 
   // Grid lines (subtle)
@@ -338,8 +338,8 @@ function draw() {
       ctx.fillStyle = seg.color;
       ctx.shadowColor = seg.color;
     } else {
-      ctx.fillStyle = i === 0 ? '#0f0' : '#0a0';
-      ctx.shadowColor = '#0f0';
+      ctx.fillStyle = i === 0 ? '#111' : '#222';
+      ctx.shadowColor = '#000';
     }
     ctx.shadowBlur = i === 0 ? 6 : 0;
     ctx.fillRect(seg.x * GRID + 1, seg.y * GRID + 1, GRID - 2, GRID - 2);
@@ -377,6 +377,12 @@ function tick() {
   } else {
     snake.pop();
   }
+
+  // Shift all colors down by one segment (makes wave flow faster)
+  for (let i = snake.length - 1; i > 0; i--) {
+    snake[i].color = snake[i - 1].color;
+  }
+  snake[0].color = undefined;
 
   // Assign next queued color to head
   if (colorQueue.length > 0) {
