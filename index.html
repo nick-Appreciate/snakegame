@@ -146,21 +146,6 @@ let globalHighScore = 0;
 let globalHighName = '';
 let playerName = '';
 
-// --- Rainbow Wave ---
-// On eat, queue N colors (one per snake segment). Each tick, the head
-// gets the next color. After N ticks every segment is colored. Then
-// new uncolored heads push the colors toward the tail until they fall off.
-const RAINBOW = ['#f44', '#f80', '#ff0', '#f0f', '#0ff'];
-let colorQueue = [];
-
-function triggerRainbow() {
-  const len = snake.length;
-  colorQueue = [];
-  for (let i = 0; i < len; i++) {
-    colorQueue.push(RAINBOW[i % RAINBOW.length]);
-  }
-}
-
 // --- Supabase ---
 async function supabaseRpc(fnName, body) {
   const res = await fetch(`${SUPABASE_URL}/rest/v1/rpc/${fnName}`, {
@@ -238,7 +223,7 @@ const COLS = canvas.width / GRID;
 const ROWS = canvas.height / GRID;
 const TICK_MS = 120;
 
-let snake, dir, nextDir, food, score, running, gameOver, waitingForName, growthPending;
+let snake, dir, nextDir, food, score, running, gameOver, waitingForName;
 
 function showNameForm() {
   waitingForName = true;
@@ -278,8 +263,6 @@ function resetBoard() {
   score = 0;
   running = false;
   gameOver = false;
-  growthPending = 0;
-  colorQueue = [];
   placeFood();
   updateScore();
   draw();
@@ -334,13 +317,8 @@ function draw() {
 
   // Snake
   snake.forEach((seg, i) => {
-    if (seg.color) {
-      ctx.fillStyle = seg.color;
-      ctx.shadowColor = seg.color;
-    } else {
-      ctx.fillStyle = i === 0 ? '#0f0' : '#0a0';
-      ctx.shadowColor = '#0f0';
-    }
+    ctx.fillStyle = i === 0 ? '#0f0' : '#0a0';
+    ctx.shadowColor = '#0f0';
     ctx.shadowBlur = i === 0 ? 6 : 0;
     ctx.fillRect(seg.x * GRID + 1, seg.y * GRID + 1, GRID - 2, GRID - 2);
   });
@@ -365,28 +343,11 @@ function tick() {
   snake.unshift(head);
 
   if (head.x === food.x && head.y === food.y) {
-    // Bonus: if previous head is rainbow-colored, count as 3 foods
-    const mult = (snake[1] && snake[1].color) ? 3 : 1;
-    score += 10 * mult;
-    growthPending += mult - 1; // 1 growth is free (no pop), queue the rest
+    score += 10;
     updateScore();
-    triggerRainbow();
     placeFood();
-  } else if (growthPending > 0) {
-    growthPending--;
   } else {
     snake.pop();
-  }
-
-  // Shift all colors down by one segment (makes wave flow faster)
-  for (let i = snake.length - 1; i > 0; i--) {
-    snake[i].color = snake[i - 1].color;
-  }
-  snake[0].color = undefined;
-
-  // Assign next queued color to head
-  if (colorQueue.length > 0) {
-    snake[0].color = colorQueue.shift();
   }
 
   draw();
