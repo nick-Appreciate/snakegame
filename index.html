@@ -146,35 +146,43 @@ let globalHighScore = 0;
 let globalHighName = '';
 let playerName = '';
 
-// --- Color Schemes ---
-const COLOR_SCHEMES = [
-  { snake: '#0f0', snakeBody: '#0a0', food: '#f00', border: '#0f0', glow: 'rgba(0,255,0,0.3)' },
-  { snake: '#0ff', snakeBody: '#088', food: '#f0f', border: '#0ff', glow: 'rgba(0,255,255,0.3)' },
-  { snake: '#ff0', snakeBody: '#aa0', food: '#f60', border: '#ff0', glow: 'rgba(255,255,0,0.3)' },
-  { snake: '#f0f', snakeBody: '#a0a', food: '#0ff', border: '#f0f', glow: 'rgba(255,0,255,0.3)' },
-  { snake: '#f80', snakeBody: '#a50', food: '#8f0', border: '#f80', glow: 'rgba(255,136,0,0.3)' },
-  { snake: '#f44', snakeBody: '#a22', food: '#4ff', border: '#f44', glow: 'rgba(255,68,68,0.3)' },
-  { snake: '#4f4', snakeBody: '#2a2', food: '#ff4', border: '#4f4', glow: 'rgba(68,255,68,0.3)' },
-  { snake: '#88f', snakeBody: '#55a', food: '#ff8', border: '#88f', glow: 'rgba(136,136,255,0.3)' },
-];
-let colorIndex = 0;
-let currentColors = COLOR_SCHEMES[0];
+// --- Rainbow Wave Animation ---
+const RAINBOW = ['#f44', '#f80', '#ff0', '#0f0', '#0ff'];
+let rainbowOffset = 0;
+let rainbowFrames = 0;
+let rainbowAnimId = null;
 
-function cycleColor() {
-  colorIndex = (colorIndex + 1) % COLOR_SCHEMES.length;
-  currentColors = COLOR_SCHEMES[colorIndex];
-  // Update canvas border and glow
-  const canvasEl = document.getElementById('game');
-  canvasEl.style.borderColor = currentColors.border;
-  canvasEl.style.boxShadow = '0 0 20px ' + currentColors.glow;
+function triggerRainbow() {
+  rainbowOffset = 0;
+  rainbowFrames = RAINBOW.length * 3; // wave travels 3 full cycles
+  if (!rainbowAnimId) runRainbow();
 }
 
-function resetColors() {
-  colorIndex = 0;
-  currentColors = COLOR_SCHEMES[0];
-  const canvasEl = document.getElementById('game');
-  canvasEl.style.borderColor = '#0f0';
-  canvasEl.style.boxShadow = '0 0 20px rgba(0,255,0,0.3)';
+function runRainbow() {
+  if (rainbowFrames <= 0) {
+    rainbowAnimId = null;
+    return;
+  }
+  rainbowOffset++;
+  rainbowFrames--;
+  draw();
+  rainbowAnimId = requestAnimationFrame(runRainbow);
+}
+
+function getSegmentColor(segIndex) {
+  if (rainbowFrames > 0) {
+    return RAINBOW[(segIndex + rainbowOffset) % RAINBOW.length];
+  }
+  return null;
+}
+
+function stopRainbow() {
+  if (rainbowAnimId) {
+    cancelAnimationFrame(rainbowAnimId);
+    rainbowAnimId = null;
+  }
+  rainbowFrames = 0;
+  rainbowOffset = 0;
 }
 
 // --- Supabase ---
@@ -294,7 +302,7 @@ function resetBoard() {
   score = 0;
   running = false;
   gameOver = false;
-  resetColors();
+  stopRainbow();
   placeFood();
   updateScore();
   draw();
@@ -341,16 +349,22 @@ function draw() {
   }
 
   // Food
-  ctx.fillStyle = currentColors.food;
-  ctx.shadowColor = currentColors.food;
+  ctx.fillStyle = '#f00';
+  ctx.shadowColor = '#f00';
   ctx.shadowBlur = 8;
   ctx.fillRect(food.x * GRID + 2, food.y * GRID + 2, GRID - 4, GRID - 4);
   ctx.shadowBlur = 0;
 
   // Snake
   snake.forEach((seg, i) => {
-    ctx.fillStyle = i === 0 ? currentColors.snake : currentColors.snakeBody;
-    ctx.shadowColor = currentColors.snake;
+    const rc = getSegmentColor(i);
+    if (rc) {
+      ctx.fillStyle = rc;
+      ctx.shadowColor = rc;
+    } else {
+      ctx.fillStyle = i === 0 ? '#0f0' : '#0a0';
+      ctx.shadowColor = '#0f0';
+    }
     ctx.shadowBlur = i === 0 ? 6 : 0;
     ctx.fillRect(seg.x * GRID + 1, seg.y * GRID + 1, GRID - 2, GRID - 2);
   });
@@ -377,7 +391,7 @@ function tick() {
   if (head.x === food.x && head.y === food.y) {
     score += 10;
     updateScore();
-    cycleColor();
+    triggerRainbow();
     placeFood();
   } else {
     snake.pop();
